@@ -6,8 +6,16 @@ import utils
 import torch
 import numpy as np
 from segment import resize_img_keep_ratio
+import argparse
 
-annotation_path = '../training_data/annotation.txt'
+
+parser = argparse.ArgumentParser(description='Predict for Testing data')
+parser.add_argument('--dir', default='test_data', type=str)
+parser.add_argument('--txt', default='annotation.txt', type = str)
+args = parser.parse_args()
+
+annotation_path = args.txt
+test_path = args.dir
 segments_path = '../segments'
 prediction_path = '../prediction.txt'
 if not os.path.exists(segments_path):
@@ -30,7 +38,8 @@ with open(annotation_path, 'r', encoding='utf-8') as f:
     lines = f.readlines()
     for line in lines:
         file_name, _, _ = line.split()
-        image = utils.read_image(file_name)
+        file_path = os.path.join(test_path, file_name)
+        image = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
         rotate_image = utils.premanage(image)
         color_image = cv2.cvtColor(rotate_image, cv2.COLOR_GRAY2RGB)
         image_list = utils.find_num_code(rotate_image, color_image)
