@@ -1,0 +1,424 @@
+% -*- coding: utf-8 -*-
+\documentclass[11pt]{ctexart}
+% \usepackage[UTF8]{ctex}
+\usepackage{graphicx}
+\usepackage[a4paper, body={18cm,22cm}]{geometry}
+\usepackage{amsmath,amssymb,amstext,wasysym,enumerate,graphicx}
+\usepackage{float,abstract,booktabs,indentfirst,amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{diagbox}
+\renewcommand\arraystretch{1.4}
+\usepackage{indentfirst}
+\usepackage{caption}
+\usepackage[colorlinks,linkcolor=blue]{hyperref}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\setlength{\parindent}{2em}
+
+\geometry{left=2.8cm,right=2.2cm,top=2.5cm,bottom=2.5cm}
+%\geometry{left=3.18cm,right=3.18cm,top=2.54cm,bottom=2.54cm}
+\newcommand\subtitle[1]{{\Large #1}} %为了保险，最好使用两层大括号
+
+\title{\LARGE \textbf{车票序列号检测与识别} \\ \subtitle{——图像处理课程设计报告}}
+\author{\Large \textbf{熊伟民} \quad \textbf{1900011621}}
+\date{\Large \today}
+
+\begin{document}
+	\maketitle
+	
+	\begin{figure}[h]
+		\centering
+	 	\includegraphics[width=6cm]{../figure/peking.jpg}
+	\end{figure}
+	
+	\renewcommand{\contentsname}{目录(Contents)}
+	\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+	\renewcommand{\algorithmicensure}{\textbf{Output:}}
+	
+	\tableofcontents
+	
+	\thispagestyle{empty}
+	
+	\newpage
+	
+	\setcounter{page}{1}
+	
+	\section{任务说明}
+	在本次课程作业中，我完成了以下部分的内容：
+	
+	1、车票票面检测和旋转摆正。
+	
+	2、21位码和7位码定位与分割。
+	
+	3、对分割好的数字识别并输出最终结果。
+	
+	\section{运行说明}
+	
+	\subsection{运行环境}
+	Windows
+	\subsection{代码结构}
+	— \quad training\_data/
+	
+	— \quad dataset/
+	
+	—— \quad letter/
+	
+	—— \quad number/
+	
+	— \quad code/
+	
+	—— \quad dataset.py
+	
+	—— \quad predict.py
+	
+	—— \quad segment.py
+	
+	—— \quad train.py
+	
+	—— \quad utils.py
+	
+	\subsection{测试方式}
+	将要测试的图片文件夹和包含测试图片名称的annotation.txt文件放在code/文件夹中，在code/文件夹中打开Windows命令行，输入以下命令：python3 predict.py --dir test\_data --txt annotation.txt。
+	
+	输出的车票票面检测、车票序列号分割定位图像保存在父目录的segments文件夹中，数字及字母预测结果保存在父目录的prediction.txt文件中。
+	
+	\subsection{Github 仓库}
+	代码库已上传至github: \href{https://github.com/xwm-123/DIP_Project}{xwm-123/DIP\_Project}
+	
+	\section{算法原理}
+	\subsection{车票票面定位与旋转摆正}
+	在第一个环节，我通过滤波与形态学变换等方法提取出了车票的区域，并使用一些边缘算法提取出了车票所占区域的轮廓，根据轮廓信息将图片中车票区域裁剪出来，并进行摆正。
+	
+	（1） 考虑到车票票面与背景的灰度值不同，我首先对于图片进行二值化处理，采用灰度值20作为阈值，得到阈值化后的图片。由于图片中存在噪声，在图片右上角存在白色细线状条纹，因此我采用5x5的卷积核对图片滤波得到滤波后的图像，可以清楚地看到，滤波后的图像中已经看不到噪声，只有车票和图片右边缘两块白色的区域。
+	
+	\begin{figure}[h]
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/binary_process.png}
+			\caption{二值化后的图像}
+		\end{minipage}%
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/2.png}
+			\caption{二值化并中值滤波后的图像}
+		\end{minipage}
+	\end{figure}
+	
+	（2） 得到滤波后的图像之后，可以看到车票中的文字部分阈值化处理后为暗部，为了去除车票中不连续的文字区域，我对图像进行了形态学处理。我先使用20x20的矩形结构元对图像进行闭操作，得到的图像中车票部分均为白色。之后使用80x80的矩形结构元对图像进行开操作，去除掉图像右侧的白色区域以及车票下方的两个小矩形区域。
+	
+	\begin{figure}[h]
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/3.png}
+			\caption{开操作后的图像}
+		\end{minipage}%
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/4.png}
+			\caption{开操作和闭操作后的图像}
+		\end{minipage}
+	\end{figure}
+	
+	（3） 将图像进行形态学处理后，图像中只有车票所在区域为一白色矩形。我使用opencv的findCountours函数找到图像中的所有矩形轮廓。因为形态学处理后图像中可能还有其他的白色区域，因此选择包含点数最多的结果作为车票的矩形轮廓。之后，我使用opencv的minAreaRect函数计算车票的最小矩形轮廓，得到包围车票的最小矩形的中心，长宽与相对x轴的旋转角度，再使用opencv的boxPoints函数得到最小矩形的四个顶点，画出了图片中车票的轮廓。
+	
+	（4） 在得到包含车票的矩形长宽，中心与相对x轴的旋转角度后，就可以将图像旋转到水平位置，并进行裁剪了。我首先使用opencv的getRotationMartrix2D函数根据旋转中心和旋转角度得到旋转矩阵，再使用warpAffine将图像旋转到水平位置。为了确定旋转后车票的顶点位置，我将旋转矩阵与旋转前矩阵的顶点坐标内积，得到旋转后车票的顶点位置，确定车票的上下及左右边界，对图像进行裁剪。上面这种方法得到的车票可能是颠倒的，因此我比较车票右下方和左上方区域的平均灰度，当左上方区域的平均灰度更小时，说明车票的二维码在左上方，对车票关于中心做中心对称操作。
+	
+	\begin{figure}[h]
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/5.png}
+			\caption{车票的矩形轮廓}
+		\end{minipage}%
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/6.png}
+			\caption{旋转摆正后的车票}
+		\end{minipage}
+	\end{figure}
+	
+	
+	\subsection{21位码与7位码区域检测与分割}
+	在摆正的车票中，虽然21位码与7位码的位置可能因为印刷的问题有所差异，但其与二维码的相对位置是基本固定的，因此我先检测容易检测的二维码区域，再根据21位码和7位码位置与二维码位置的相对关系进行检测。
+	
+	（1） 二维码出现在矫正后车票的右下角，因此我先分割出二维码的区域，对二维码区域使用20为阈值进行二值化操作，对于二值化后的图像先使用45x45的矩形结构元进行闭操作填补中间的黑色空隙，再使用60x60的矩形结构元进行开操作去除右下角的白色区域。将处理好的二维码图像重新放到车票中原来的位置，使用车票边缘检测的相同方法即可得到包围二维码的最小矩形的四个顶点。
+	
+	\begin{figure}[h]
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/7.png}
+			\caption{形态学操作后的二维码区域}
+		\end{minipage}%
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/8.png}
+			\caption{二维码在车票中的位置}
+		\end{minipage}
+	\end{figure}
+	
+	（2） 根据二维码的位置，我粗略计算出了21位码和7位码在图像中的相对位置，将对应位置裁剪出来后，我采用20为阈值将21位码的区域阈值化，并提取7位码区域中灰度值大于60小于140的区域作为前景。进行中值滤波去除噪声后，运用与前面相同的形态学方法得到21位码和7位码在车票中所在的区域。根据形态学处理的结果，提取出包含这两个区域的最小矩形的轮廓。因为我在在形态学处理的过程中对图像进行了扩张处理以避免不正确的阈值导致的矩形区域的错误，这里我考察了矩形框左右两侧是否有没出现数字的黑色区域，对矩形框进行相应的调整，得到最后的精细检测的矩形框。
+	
+	\begin{figure}[h]
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/9.png}
+			\caption{21位码的矩形框}
+		\end{minipage}%
+		\begin{minipage}[H]{0.5\linewidth}
+			\centering
+			\includegraphics[width= 5cm]{../figure/10.png}
+			\caption{7位码的矩形框}
+		\end{minipage}
+	\end{figure}
+	
+	（3） 对于分割出来的21位码和7位码区域，我先将对应区域进行二值化和滤波处理，只保留数字部分作为前景。之后使用findCounters函数找到所有的连通区域，对应每个数字或者字母，再使用boundingRect函数找到包含每个数字或字母的最小正矩形，即可分割出每个字母或者数字，根据划分结果在矩形框中划线。考虑到可能会出现相邻两个数字或字母相连或者单个字符被隔断的情况，我检查连通分量数是否为21或者7，对于不满足的情况采用字母和数字大小比例为1.5：1将矩形框分割。
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width= 10cm]{../figure/11.png}
+		\caption{划分后的图像}
+	\end{figure}
+	
+	\subsection{数字和字母的识别}
+	
+	根据21位码和7位码的分割结果，我构建了数字和字母的训练集和测试集，分别保存在dataset/number和/dataset/letter两个文件夹中。
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width= 10cm]{../figure/12.png}
+		\caption{部分训练数据}
+	\end{figure}
+
+	我使用卷积神经网络对于数字和字母进行分类，对于数字和字母分别进行训练。对于输入的图片，在预处理部分将图片padding为64x64作为输入。
+	经过5x5和3x3的卷积核卷积后，接入全连接网络进行分类。数字图片的训练集图片较多且种类较少，最后在验证集上的准确率达到了99\%以上；字母图片的训练集图片较少且种类较多，因此我使用了数字识别网络的卷积层参数，在验证集上也可以达到90\%以上的准确率。
+	
+	\section{实验结果分析}
+	\subsection{结果展示}
+	经过在训练集数据上的测试，我发现算法在大多数图片上都取得了比较好的分割结果，具有很好的鲁棒性，同时对于21位码和7位码识别的准确率都较高。
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width= 10cm]{../figure/13.png}
+		\caption{分割结果}
+	\end{figure}
+	
+	但是也存在着一些问题，例如在图14中，左上角的7位码分割不准确，存在部分红线穿过图形的现象，经过查看中间的结果得知，因为形态学操作导致图像中出现了不正确的连通分量数，没有进行自适应的分割，而是按照字母与数字宽度1.5：1来分割，而J字母的宽度相较其他字母较窄，导致出现了不正确的分割结果。需要采用更精细的形态学或阈值处理来解决这一问题。
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width= 10cm]{../figure/14.png}
+		\caption{不正确的分割结果}
+	\end{figure}
+
+	在图15中,左上角的7位码与站名发生重叠，不能正确地根据灰度值分割出7位码的区域，导致错误的分割结果。可能需要更多的训练数据和机器学习的方法来消除重叠对于寻找7位码区域的影响。
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width= 10cm]{../figure/15.png}
+		\caption{不正确的分割结果}
+	\end{figure}
+	
+	\subsection{总结与分析}
+	
+	这次车票序列号检测和识别课程大作业帮助我回顾了课程上的知识，同时也让我了解到传统图像处理方法一样可以取得与深度学习相近的结果，且不需要大量的训练数据的支撑。也让我学习到如何根据具体情况选择合适的方法和参数，从而取得好的图像处理结果。
+	
+\end{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%Library%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 1. 脚注用法
+LaTeX\footnote{Latex is Latex} is a good software
+
+%2. 强调
+\emph{center of percussion} %[Brody 1986], %\lipsum[5]
+
+%3. 随便生成一段话
+\usepackage{lipsum}
+\lipsum[4]
+
+%4. 列条目
+\begin{itemize}
+	\item the angular velocity of the bat,
+	\item the velocity of the ball, and
+	\item the position of impact along the bat.
+\end{itemize}
+
+%5. 表格
+\begin{table}[h]
+	\centering  
+	\begin{tabular}{c|cc}
+		\hline
+		年份 & \multicolumn{2}{c}{指标}\\
+		\hline
+		2017 & 0.9997 & 0.0555 \\
+		2018 & 0.9994 & 0      \\
+		2019 & 0.9993 & 0      \\
+		\hline
+	\end{tabular}
+	\caption{NAME}\label{SIGN}
+\end{table}
+
+\begin{center}
+	\begin{tabular}{c|cclcrcc}
+		\hline
+		Year & theta & $S_1^-$ & $S_2^-$ & $S_3^-$ & $S_4^+$ & $S_5^+$ & $S_6^+$ \\%表格标题
+		\hline
+		2016 & 1      & 0      & 0 & 0.0001 & 0      & 0      & 0 \\
+		2017 & 0.9997 & 0.0555 & 0 & 0.2889 & 0.1844 & 0.463  & 0 \\
+		2018 & 0.9994 & 0      & 0 & 0.0012 & 0.3269 & 0.7154 & 0 \\
+		2019 & 0.9993 & 0      & 0 & 0      & 0.4325 & 1.0473 & 0 \\
+		2020 & 0.9991 & 0      & 0 & 0      & 0.5046 & 1.2022 & 0 \\
+		2021 & 0.999  & 0      & 0 & 0      & 0.5466 & 1.2827 & 0 \\
+		2022 & 0.9989 & 0.0017 & 0 & 0.3159 & 0.562  & 1.2995 & 0 \\
+		2023 & 0.9989 & 0      & 0 & 0.0109 & 0.5533 & 1.2616 & 0 \\
+		2024 & 0.9989 & 0      & 0 & 0      & 0.5232 & 1.1769 & 0 \\
+		2025 & 0.9989 & 0      & 0 & 0.1009 & 0.4738 & 1.0521 & 0 \\
+		2026 & 0.9991 & 0      & 0 & 0      & 0.4071 & 0.8929 & 0 \\
+		2027 & 0.9992 & 0.0004 & 0 & 0.1195 & 0.3248 & 0.7042 & 0 \\
+		2028 & 0.9994 & 0.0164 & 0 & 0.046  & 0.2287 & 0.4902 & 0 \\
+		2029 & 0.9997 & 0      & 0 & 0.0609 & 0.12   & 0.2545 & 0 \\
+		2030 & 1      & 0      & 0 & 0      & 0      & 0      & 0 \\
+		\hline
+	\end{tabular}
+\end{center}
+
+%6. 数学公式
+\begin{equation}
+	a^2 = a * a\label{aa}
+\end{equation}
+
+\[
+\begin{pmatrix}{*{20}c}
+	{a_{11} } & {a_{12} } & {a_{13} }  \\
+	{a_{21} } & {a_{22} } & {a_{23} }  \\
+	{a_{31} } & {a_{32} } & {a_{33} }  \\
+\end{pmatrix}
+= \frac{{Opposite}}{{Hypotenuse}}\cos ^{ - 1} \theta \arcsin \theta
+\]
+
+\[
+p_{j}=\begin{cases} 0,&\text{if $j$ is odd}\\
+	r!\,(-1)^{j/2},&\text{if $j$ is even}
+\end{cases}
+\]
+
+
+\[
+\arcsin \theta  =
+\mathop{{\int\!\!\!\!\!\int\!\!\!\!\!\int}\mkern-31.2mu
+	\bigodot}\limits_\varphi
+{\mathop {\lim }\limits_{x \to \infty } \frac{{n!}}{{r!\left( {n - r}
+			\right)!}}} \eqno (1)
+\]
+
+%7. 双图并行
+\begin{figure}[h]
+	% 一个2*2图片的排列
+	\begin{minipage}[h]{0.5\linewidth}
+		\centering
+		\includegraphics[width=0.8\textwidth]{./figures/0.jpg}
+		\caption{Figure example 2}
+	\end{minipage}
+	\begin{minipage}[h]{0.5\linewidth}
+		\centering
+		\includegraphics[width=0.8\textwidth]{./figures/0.jpg}
+		\caption{Figure example 3}
+	\end{minipage}
+\end{figure}
+
+%8. 单张图片部分
+\begin{figure}[h]
+	%\small
+	\centering
+	\includegraphics[width=12cm]{./figures/mcmthesis-aaa.eps}
+	\caption{Figure example 1} \label{fig:aa}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{minipage}{0.5\linewidth}
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\multicolumn{2}{|c|}{\multirow{2}{*}{合并}}&测试\\
+		\cline{3-3}
+		\multicolumn{2}{|c|}{}& 0.9997  \\
+		\hline
+		2019 & 0.9993 & 0 \\
+		\hline
+	\end{tabular}
+\end{minipage}
+
+\begin{minipage}{0.5\linewidth}
+	\begin{tabular}{c|ccc}
+		\hline
+		年份 & \multicolumn{3}{c}{指标}\\
+		\hline
+		\multirow{3}{*}{合并}&2017 & 0.9997 & 0.0555 \\
+		&2018 & 0.9994 & 0      \\
+		&2019 & 0.9993 & 0      \\
+		\hline
+	\end{tabular}
+\end{minipage}
+
+\begin{table}[h]
+	\centering	
+	\begin{Large}
+		\begin{tabular}{p{4cm} p{8cm} < {\centering}}
+			\hline
+			院\qquad 系: & 信息工程学院 \\
+			\hline
+			团队名称: & PlantBook Team \\
+			\hline
+			分\qquad 组: & 第0组1号 \\
+			\hline
+			日\qquad 期: & 2017年10月28日 \\
+			\hline
+			指导教师: & 吱吱吱\\
+			\hline
+		\end{tabular}
+	\end{Large}
+\end{table}
+
+\ctexset{
+	section={
+		format+=\heiti \raggedright,
+		name={,、},
+		number=\chinese{section},
+		beforeskip=1.0ex plus 0.2ex minus .2ex,
+		afterskip=1.0ex plus 0.2ex minus .2ex,
+		aftername=\hspace{0pt}
+	},
+}
+
+\begin{table}[h]
+	\centering
+	\begin{Large}
+		\begin{tabular}{p{3cm} p{7cm}<{\centering}}
+			院  \qquad  系: & 信息工程学院           \\ \cline{2-2}
+		\end{tabular}
+	\end{Large}		
+\end{table}
+\thispagestyle{empty}
+\newpage
+\thispagestyle{empty}
+\tableofcontents
+\thispagestyle{empty}
+\newpage
+\setcounter{page}{1}
+
+% 9. 代码
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+	numbers=left, 
+	numberstyle= \tiny, 
+	keywordstyle= \color{ blue!70},
+	commentstyle= \color{red!50!green!50!blue!50}, 
+	frame=shadowbox, % 阴影效果
+	rulesepcolor= \color{ red!20!green!20!blue!20} ,
+	escapeinside=``, % 英文分号中可写入中文
+	xleftmargin=2em,xrightmargin=2em, aboveskip=1em,
+	basicstyle=\footnotesize,
+	framexleftmargin=2em
+}

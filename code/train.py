@@ -36,6 +36,7 @@ def load_data(dir_path):
     载入训练数据
     '''
     datalist = []
+    list_dir = os.listdir(dir_path)
     for i in list_dir:
         directory_path = os.path.join(dir_path, i)
         for file in os.listdir(directory_path):
@@ -121,10 +122,9 @@ def train_part(model, optimizer, train_dataloader, valid_dataloader, epochs=1):
             torch.save(model.state_dict(), save_path)
 
 if __name__ == '__main__':
-    trainset_path = '../dataset/number/train'
-    validset_path = '../dataset/number/valid'
-    list_dir = os.listdir(trainset_path)
-    learning_rate = 1e-5
+    trainset_path = '../dataset/letter/train'
+    validset_path = '../dataset/letter/valid'
+    learning_rate = 3e-5
     channel_1 = 32
     channel_2 = 32
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -135,8 +135,15 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, 32, True)
     valid_dataloader = DataLoader(valid_dataset, 32, True)
 
-    model = ThreeLayerConvNet(3, channel_1, channel_2, 10)
+    model = ThreeLayerConvNet(3, channel_1, channel_2, 26)
     optimizer = optim.Adam(model.parameters(),lr = learning_rate)
     # my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decay_rate)
 
-    train_part(model, optimizer, train_dataloader, valid_dataloader,epochs=20)
+    pretest_model = torch.load('../model_number.pth')
+    model_dict = model.state_dict()
+    # print(model_dict)
+    state_dict = {k:v for k,v in pretest_model.items() if k in model_dict.keys() and (k!='fc.bias' and k!='fc.weight')}
+    model_dict.update(state_dict)
+    model.load_state_dict(model_dict)
+
+    train_part(model, optimizer, train_dataloader, valid_dataloader,epochs=50)

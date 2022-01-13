@@ -19,36 +19,37 @@ def resize_img_keep_ratio(img,target_size):
     img_new = cv2.copyMakeBorder(img,top,bottom,left,right,cv2.BORDER_CONSTANT,None,(0,0,0)) 
     return img_new
 
-
-with open(annotation_path, 'r', encoding='utf-8') as f:
-    lines = f.readlines()
-    if not os.path.exists(letter_dir):
-        os.makedirs(letter_dir)
-    if not os.path.exists(number_dir):
-        os.makedirs(number_dir)
-    for line in lines:
-        file_name, tag_21, tag_7 = line.split()
-        image_name = file_name.split('.')[0]
-        image = utils.read_image(file_name)
-        rotate_image = utils.premanage(image)
-        color_image = cv2.cvtColor(rotate_image, cv2.COLOR_GRAY2RGB)
-        image_list = utils.find_num_code(rotate_image, color_image)
-        # image_list = utils.cut_num21_code(rotate_image, num21_cleaned_box, num21_angle, rotate_image.shape)
-        # utils.show_gray_image(resize_img_keep_ratio(image_list[0], [50, 50]))
-        i = 0
-        for image, tag in zip(image_list, tag_21):
-            i+=1
-            if not i == 15:
-                dir_path = os.path.join(number_dir, tag)
-                if not os.path.exists(dir_path):
-                    os.makedirs(dir_path)
-                image_save_path = os.path.join(dir_path, image_name+'_'+str(i)+'.jpg')
-                resized_image = resize_img_keep_ratio(image, (64,64))
-                cv2.imwrite(image_save_path, resized_image)
-            else:
-                dir_path = os.path.join(letter_dir, tag)
-                if not os.path.exists(dir_path):
-                    os.makedirs(dir_path)
-                image_save_path = os.path.join(dir_path, image_name+'_'+str(i)+'.jpg')
-                resized_image = resize_img_keep_ratio(image, (64, 64))
-                cv2.imwrite(image_save_path, resized_image)
+if __name__ == '__main__':
+    with open(annotation_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+        if not os.path.exists(letter_dir):
+            os.makedirs(letter_dir)
+        if not os.path.exists(number_dir):
+            os.makedirs(number_dir)
+        for line in lines:
+            file_name, tag_21, tag_7 = line.split()
+            image_name = file_name.split('.')[0]
+            image = utils.read_image(file_name)
+            rotate_image = utils.premanage(image)
+            color_image = cv2.cvtColor(rotate_image, cv2.COLOR_GRAY2RGB)
+            image_list = utils.find_num_code(rotate_image, color_image)
+            # image_list = utils.cut_num21_code(rotate_image, num21_cleaned_box, num21_angle, rotate_image.shape)
+            # utils.show_gray_image(resize_img_keep_ratio(image_list[0], [50, 50]))
+            i = 0
+            for image, tag in zip(image_list, tag_21):
+                i+=1
+                _, image = cv2.threshold(image, 20, 255, cv2.THRESH_BINARY)
+                if not i == 15:
+                    dir_path = os.path.join(number_dir, tag)
+                    if not os.path.exists(dir_path):
+                        os.makedirs(dir_path)
+                    image_save_path = os.path.join(dir_path, image_name+'_'+str(i)+'.jpg')
+                    resized_image = resize_img_keep_ratio(image, (64,64))
+                    cv2.imwrite(image_save_path, resized_image)
+                else:
+                    dir_path = os.path.join(letter_dir, tag)
+                    if not os.path.exists(dir_path):
+                        os.makedirs(dir_path)
+                    image_save_path = os.path.join(dir_path, image_name+'_'+str(i)+'.jpg')
+                    resized_image = resize_img_keep_ratio(image, (64, 64))
+                    cv2.imwrite(image_save_path, resized_image)
